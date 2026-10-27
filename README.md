@@ -29,13 +29,29 @@
 2. 重启输入法（任务栏输入法图标右键 → 重新加载配置，或注销重登）
 3. 打 `diannao`，候选「电脑」右侧出现 `computer /kəmˈpjuːtə/ 〔高考〕`
 
-脚本做三件事，全程可回滚：
+脚本做四件事，全程可回滚：
 
 - 把注释库复制到 `%APPDATA%\WindInput\schemas\comments\`
 - 在 `config.toml` 追加一条 `[[ui.comment_dicts]]`（幂等）
 - 把 `[ui.candidate]` 的注释模板设为 `${dict}`（只改这两个键，其余原样保留）
+- 启用「全拼」方案并设为当前方案（见下方说明）
 
 改配置前自动备份成 `config.toml.bak-<时间戳>`，想还原就改名回去。
+
+### ⚠️ 为什么一开始只有五笔
+
+清风出厂配置里写着：
+
+```toml
+[schema]
+active = "wubi86"
+available = ["wubi86", "wubi86_pinyin"]
+```
+
+**全拼方案（`pinyin`）随安装包一起提供，但不在 `available` 里**，所以方案菜单只显示「英文 / 五笔 / 五笔拼音」。
+安装脚本会自动把 `pinyin` 加进 `available` 并设为当前方案，之后菜单里就有「全拼」了。
+
+手动改也可以，就是上面那两行。
 
 ### 手动安装
 

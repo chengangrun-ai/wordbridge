@@ -50,9 +50,10 @@ def find_data_dir() -> Path:
     return Path(appdata or ".") / "WindInput"
 
 
-def set_key_in_section(text: str, section: str, key: str, value: str) -> str:
-    """在 [section] 段内设置 key = value，保留文件其余内容与顺序。
+def set_key_in_section(text: str, section: str, key: str, raw: str) -> str:
+    """在 [section] 段内设置 key = <raw>，保留文件其余内容与顺序。
 
+    raw 是已经序列化好的 TOML 右值（字符串要自带引号，数组写成 ["a","b"]）。
     段不存在时在文件末尾追加该段。段内已有该键则替换，没有则插到段首。
     """
     lines = text.splitlines()
@@ -63,7 +64,7 @@ def set_key_in_section(text: str, section: str, key: str, value: str) -> str:
             start = i
             break
 
-    new_line = f'{key} = "{value}"'
+    new_line = f"{key} = {raw}"
 
     if start is None:
         # 段不存在：追加
@@ -89,6 +90,27 @@ def set_key_in_section(text: str, section: str, key: str, value: str) -> str:
     # 没有 → 插到段首之后
     lines.insert(start + 1, new_line)
     return "\n".join(lines) + "\n"
+
+
+def ensure_pinyin_schema(text: str) -> str:
+    """确保「全拼」方案被启用并设为当前方案。
+
+    出厂 config 的 schema.available 只有 ["wubi86", "wubi86_pinyin"]，
+    拼音方案（id = pinyin）虽然随安装包提供，却不在可用列表里，
+    于是方案菜单里根本看不到它 —— 这是「只能用五笔」的直接原因。
+    """
+    # 读出已有的 available，保持原有方案不丢
+    existing: list[str] = []
+    m = re.search(r"^\s*available\s*=\s*\[(.*?)\]", text, re.M | re.S)
+    if m:
+        existing = re.findall(r'"([^"]+)"', m.group(1))
+
+    ordered = ["pinyin"] + [s for s in existing if s != "pinyin"]
+    raw = "[" + ", ".join(f'"{s}"' for s in ordered) + "]"
+
+    text = set_key_in_section(text, "schema", "available", raw)
+    text = set_key_in_section(text, "schema", "active", '"pinyin"')
+    return text
 
 
 def has_comment_dict(text: str) -> bool:
@@ -138,15 +160,17 @@ def main() -> int:
         text += COMMENT_DICT_BLOCK
         print("注释词库 : 已追加 [[ui.comment_dicts]]")
 
-    text = set_key_in_section(text, "ui.candidate", "comment_template_vertical", TEMPLATE)
-    text = set_key_in_section(text, "ui.candidate", "comment_template_horizontal", TEMPLATE)
+    text = set_key_in_section(text, "ui.candidate", "comment_template_vertical", f'"{TEMPLATE}"')
+    text = set_key_in_section(text, "ui.candidate", "comment_template_horizontal", f'"{TEMPLATE}"')
     print(f"注释模板 : 已设为 {TEMPLATE}")
+
+    text = ensure_pinyin_schema(text)
+    print("输入方案 : 已启用「全拼」并设为当前方案")
 
     cfg.write_text(text, encoding="utf-8")
 
     print("\n完成。请重启输入法让配置生效：")
-    print("  任务栏输入法图标右键 → 重新加载配置")
-    print("  或注销后重新登录")
+    print("  运行 wind_cli.bat restart，或注销后重新登录")
     print("\n验收：打 diannao，候选「电脑」右侧应出现")
     print("      computer /kəmˈpjuːtə/ 〔高考〕")
     print(f"\n想还原：把 {backup.name} 改名回 config.toml 即可。")
