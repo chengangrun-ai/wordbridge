@@ -6,6 +6,7 @@
 
 import ctypes
 import subprocess
+import sys
 import time
 from ctypes import wintypes
 
@@ -56,6 +57,9 @@ def find_window(keywords):
 
 
 def main():
+    # 要打的串可以从命令行传，默认 diannao
+    word = sys.argv[1] if len(sys.argv) > 1 else "diannao"
+
     print("启动记事本...")
     subprocess.Popen(["notepad.exe"])
     time.sleep(2.0)
@@ -89,8 +93,8 @@ def main():
     combo(VK_LWIN, VK_SPACE, delay=1.2)
     time.sleep(1.0)
 
-    print("输入 diannao ...")
-    for ch in "diannao":
+    print(f"输入 {word} ...")
+    for ch in word:
         tap(VK[ch])
 
     time.sleep(1.2)

@@ -34,6 +34,18 @@ enabled = true
 schemas = []
 """
 
+# 组合释义兜底库：排在主库**之后**，主库查不到才用它。
+# 词典的精准释义因此永远不会被机器拼合的结果盖掉。
+COMPOSED_NAME = "wordbridge_composed.dict.yaml"
+COMPOSED_BLOCK = f"""
+[[ui.comment_dicts]]
+id = "wordbridge_composed"
+label = "词桥短语兜底"
+path = "comments/{COMPOSED_NAME}"
+enabled = true
+schemas = []
+"""
+
 
 def find_data_dir() -> Path:
     """清风 Windows 版用户数据目录：%APPDATA%\\WindInput。"""
@@ -140,6 +152,11 @@ def main() -> int:
     shutil.copy2(src_dict, dst_dict)
     print(f"注释库   : 已写入 {dst_dict}")
 
+    src_composed = root / "data" / COMPOSED_NAME
+    if src_composed.is_file():
+        shutil.copy2(src_composed, comments_dir / COMPOSED_NAME)
+        print(f"兜底库   : 已写入 {comments_dir / COMPOSED_NAME}")
+
     # 2) 改 config.toml
     cfg = data_dir / "config.toml"
     if not cfg.is_file():
@@ -159,6 +176,12 @@ def main() -> int:
             text += "\n"
         text += COMMENT_DICT_BLOCK
         print("注释词库 : 已追加 [[ui.comment_dicts]]")
+
+    if "wordbridge_composed" not in text and src_composed.is_file():
+        if not text.endswith("\n"):
+            text += "\n"
+        text += COMPOSED_BLOCK
+        print("兜底词库 : 已追加 [[ui.comment_dicts]]（短语组合）")
 
     text = set_key_in_section(text, "ui.candidate", "comment_template_vertical", f'"{TEMPLATE}"')
     text = set_key_in_section(text, "ui.candidate", "comment_template_horizontal", f'"{TEMPLATE}"')
