@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 390" width="680" height="390">
+<title>跨词语境消歧的数据流</title>
+<desc>上屏的词被记住，下次查注释时先按上文查规则表，命中则用规则释义，未命中回落词库</desc>
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect x="60" y="30" width="150" height="50" rx="8" fill="#2C2C2A" stroke="#5F5E5A" stroke-width="1"/>
+  <text x="135" y="55" text-anchor="middle" dominant-baseline="central" fill="#D3D1C7" font-size="13">上屏「三」</text>
+
+  <rect x="260" y="30" width="200" height="50" rx="8" fill="#085041" stroke="#1D9E75" stroke-width="1"/>
+  <text x="360" y="48" text-anchor="middle" dominant-baseline="central" fill="#9FE1CB" font-size="13" font-weight="600">next_word_prev</text>
+  <text x="360" y="66" text-anchor="middle" dominant-baseline="central" fill="#5DCAA5" font-size="11">现成设施，不用改</text>
+
+  <rect x="60" y="130" width="150" height="50" rx="8" fill="#2C2C2A" stroke="#5F5E5A" stroke-width="1"/>
+  <text x="135" y="155" text-anchor="middle" dominant-baseline="central" fill="#D3D1C7" font-size="13">打 mi</text>
+
+  <rect x="260" y="130" width="150" height="50" rx="8" fill="#2C2C2A" stroke="#5F5E5A" stroke-width="1"/>
+  <text x="335" y="155" text-anchor="middle" dominant-baseline="central" fill="#D3D1C7" font-size="13">候选「米」</text>
+
+  <rect x="460" y="130" width="180" height="50" rx="8" fill="#0C447C" stroke="#378ADD" stroke-width="1"/>
+  <text x="550" y="155" text-anchor="middle" dominant-baseline="central" fill="#B5D4F4" font-size="13">求值 ${dict}</text>
+
+  <rect x="260" y="214" width="380" height="52" rx="8" fill="#412402" stroke="#EF9F27" stroke-width="1"/>
+  <text x="450" y="232" text-anchor="middle" dominant-baseline="central" fill="#FAC775" font-size="13" font-weight="600">context_gloss：上文「三」+ 规则表里「米」</text>
+  <text x="450" y="251" text-anchor="middle" dominant-baseline="central" fill="#EF9F27" font-size="11">新增的代码，就是这一层</text>
+
+  <rect x="90" y="304" width="220" height="52" rx="8" fill="#173404" stroke="#639922" stroke-width="1"/>
+  <text x="200" y="322" text-anchor="middle" dominant-baseline="central" fill="#C0DD97" font-size="13" font-weight="600">命中 → meter</text>
+  <text x="200" y="341" text-anchor="middle" dominant-baseline="central" fill="#97C459" font-size="11">你要的效果</text>
+
+  <rect x="420" y="304" width="220" height="52" rx="8" fill="#2C2C2A" stroke="#5F5E5A" stroke-width="1"/>
+  <text x="530" y="322" text-anchor="middle" dominant-baseline="central" fill="#D3D1C7" font-size="13" font-weight="600">未命中 → 查词库 rice</text>
+  <text x="530" y="341" text-anchor="middle" dominant-baseline="central" fill="#B4B2A9" font-size="11">原行为，不受影响</text>
+
+  <text x="40" y="378" dominant-baseline="central" fill="#B4B2A9" font-size="12">改 4 个文件 237 行；只加一层查询，不动原有的词库路径。</text>
+</g>
+
+<path d="M212 55 L256 55" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M212 155 L256 155" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M412 155 L456 155" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M360 82 L360 122" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M550 182 L550 210" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M400 268 L240 300" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M500 268 L520 300" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+</svg>

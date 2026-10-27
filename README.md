@@ -85,9 +85,34 @@ python tools/build_comment_dict.py [分片目录]
 
 ## 技术要点
 
-- **注释库不参与召回**。清风把它作为独立的 `[[ui.comment_dicts]]` 表加载，与主词库完全隔离，注释里的词永远不会变成候选。
+### 跨词语境消歧（改引擎）
+
+静态词典表达不了「打完『三』再打 mi 该显示 meter」。这一层必须改引擎：
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/arch-context-dark.svg">
+  <img src="assets/arch-context-light.svg" alt="跨词语境消歧的数据流：上屏的词被记住，查注释时先按上文查规则表">
+</picture>
+
+改动只有 4 个文件、237 行（见 [`patches/`](patches/)）：
+
+| 文件 | 改了什么 |
+|---|---|
+| `comment_context.rs`（新增） | 规则表加载 + 按上文挑释义，含 4 个单测 |
+| `lib.rs` | 注册模块 |
+| `coordinator.rs` | 加字段、启动时从 `schemas/comments/context.json` 加载 |
+| `comment.rs` | `${dict}` 求值先查语境，命中即返回，未命中回落词库 |
+
+复用了底座已有的两个设施，没有另造轮子：
+
+- **`next_word_prev`** —— 已经存在的「上一个上屏词」，且只在真正相邻时记录（焦点变化、挪光标、撤销都清空），不会拿很久以前、已不相邻的词误判
+- **`${dict}` 的单点求值** —— 只加一层判断，原有词库路径完全不动
+
+### 注释层本身
+
+- **注释库不参与召回**。作为独立的 `[[ui.comment_dicts]]` 加载，与主词库隔离，注释里的词永远不会变成候选。
 - **按需载入**。首次加载转成 `.wcmt` 二进制缓存，之后 mmap 打开，常驻内存与词典大小基本无关。
-- **两列格式**。`columns` 显式声明 `text` + `comment`，是清风识别注释源的判据。
+- **两列格式**。`columns` 显式声明 `text` + `comment`，是识别注释源的判据。
 
 ## 数据来源与许可
 
@@ -101,7 +126,12 @@ python tools/build_comment_dict.py [分片目录]
 ## 底座致谢
 
 输入法底座基于开源项目 [**清风输入法 WindInput**](https://github.com/huanfeng/WindInput)（GPL-3.0-or-later，
-© huanfeng 及贡献者）。本项目在其之上提供中文词的英文注释数据层与安装工具，
-未修改其引擎源码。清风的 Rust 引擎、候选系统与自绘 UI 是本项目得以成立的基础。
+© huanfeng 及贡献者）。本项目在其之上提供中文词的英文注释数据层与安装配置。
+
+> 本项目是清风输入法 (WindInput) 的**非官方分支**，与原项目及其作者无关。
+
+按原项目的 [品牌约定](https://github.com/huanfeng/WindInput/blob/main/BRANDING.md)，
+分支公开发布须更换名称与图标、并作上述声明；本项目已照此执行。
+原项目的名称与图形标识著作权不在 GPL 授权范围内，本项目未使用。
 
 第三方数据与项目的完整声明见 [NOTICE.md](NOTICE.md)。

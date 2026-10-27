@@ -1,0 +1,237 @@
+diff --git a/wind_input/crates/wind-coordinator/src/comment.rs b/wind_input/crates/wind-coordinator/src/comment.rs
+index 050d67c..9b68b7d 100644
+--- a/wind_input/crates/wind-coordinator/src/comment.rs
++++ b/wind_input/crates/wind-coordinator/src/comment.rs
+@@ -1241,6 +1241,30 @@ impl crate::coordinator::Coordinator {
+         })
+     }
+ 
++    /// 按上文语境给候选挑释义（词桥的「三米」≠「吃米」）。
++    ///
++    /// 上文取 [`Coordinator::next_word_prev`]，它只记**真正相邻的上一个上屏词**——
++    /// 焦点变化、挪光标、撤销上屏都会把它清空，所以不会拿很久以前、已不相邻的词来误判。
++    ///
++    /// 规则表为空（没放 `context.json`）时直接返回 `None`，调用方回落词库原注释，
++    /// 等于该功能不存在，不影响任何既有行为。
++    fn context_gloss(&self, word: &str) -> Option<String> {
++        let prev = self
++            .next_word_prev
++            .lock()
++            .unwrap_or_else(|e| e.into_inner())
++            .clone()
++            .unwrap_or_default();
++        if prev.is_empty() {
++            return None;
++        }
++        let table = self
++            .comment_ctx
++            .read()
++            .unwrap_or_else(|e| e.into_inner());
++        crate::comment_context::pick(&table, word, &prev)
++    }
++
+     /// 上方注释条开关开时的 [`Self::comment_for`]：返回 `(上段, 下段)`，见
+     /// [`Template::render_split`]。开关关时调用方必须走 `comment_for`（不拆分、字面 `\n` 原样留下）。
+     pub(crate) fn comment_parts_for(
+@@ -1604,6 +1628,13 @@ impl crate::coordinator::Coordinator {
+             // 显示成 `ASP`，拿显示形态查会精确命中 IT 库的缩写 `ASP`；拿原文 `asp` 双向回退
+             // 同样会升格命中它。词库已确证这个词是小写的，升格就是换了个词。
+             "dict" => {
++                // 词桥语境层：先按上文挑释义，命中就**直接用它**，不再查词库。
++                // 「米」在上文有「三」时该显示 meter 而不是 rice——这条信息词库表达不了
++                // （它是「词 → 一条注释」的静态映射），只能靠规则表补。
++                // 未命中时照旧走词库，所以规则表可以只写真正需要区分的词。
++                if let Some(g) = self.context_gloss(&c.text) {
++                    return Some(VarValue::from(g));
++                }
+                 let (key, fb) = dict_query_key(c);
+                 reverse.comment_of_with(arg, key, Some(&c.code), dict_schema, fb)
+             }
+diff --git a/wind_input/crates/wind-coordinator/src/comment_context.rs b/wind_input/crates/wind-coordinator/src/comment_context.rs
+new file mode 100644
+index 0000000..8928061
+--- /dev/null
++++ b/wind_input/crates/wind-coordinator/src/comment_context.rs
+@@ -0,0 +1,127 @@
++//! 词桥语境规则：按**上文**给多义词挑释义。
++//!
++//! # 为什么需要它
++//!
++//! 注释词库是「词 → 一条注释」的静态映射，「米」永远显示 rice。但打完「三」再打
++//! `mi`，用户要的是 meter。词库本身没有能力表达「取决于上文」，所以规则单独成表。
++//!
++//! # 数据形态
++//!
++//! 与词桥的 `context.json` 同构：
++//!
++//! ```json
++//! {
++//!   "米": [
++//!     { "g": "meter", "t": ["一", "二", "三", "十"] },
++//!     { "g": "rice",  "t": ["吃", "买", "煮"] }
++//!   ]
++//! }
++//! ```
++//!
++//! `g` 是命中后要显示的释义，`t` 是触发词。判定方式是「上文里出现了某个触发词」。
++//!
++//! # 边界
++//!
++//! 规则只是**覆盖**，不是替代：查不到规则就回落到词库的原注释，所以规则表可以是稀疏的，
++//! 只写真正需要区分的那些词。
++
++use std::collections::HashMap;
++use std::path::Path;
++
++/// 一条语境规则。
++#[derive(Debug, Clone, serde::Deserialize)]
++pub struct CtxRule {
++    /// 命中后显示的释义。
++    #[serde(rename = "g")]
++    pub gloss: String,
++    /// 触发词：上文里出现任意一个即命中。
++    #[serde(rename = "t", default)]
++    pub triggers: Vec<String>,
++}
++
++/// 规则表：词 → 该词的若干条规则（按书写顺序，先命中先用）。
++pub type ContextTable = HashMap<String, Vec<CtxRule>>;
++
++/// 从 JSON 文件加载规则表。文件不存在或解析失败都返回空表。
++///
++/// 刻意不报错中断：语境规则是**锦上添花**的功能，文件写坏了不该让整个输入法起不来。
++/// 解析失败打一条 warn 就够——用户从日志能看到，而输入本身不受影响。
++pub fn load(path: &Path) -> ContextTable {
++    let Ok(raw) = std::fs::read_to_string(path) else {
++        return ContextTable::new();
++    };
++    match serde_json::from_str::<ContextTable>(&raw) {
++        Ok(t) => {
++            let rules: usize = t.values().map(Vec::len).sum();
++            tracing::info!(
++                "已加载语境规则 {} 词 / {} 条：{}",
++                t.len(),
++                rules,
++                path.display()
++            );
++            t
++        }
++        Err(e) => {
++            tracing::warn!("语境规则解析失败，已跳过 {}：{e}", path.display());
++            ContextTable::new()
++        }
++    }
++}
++
++/// 在规则表里为 `word` 挑一条与 `prev`（上文）匹配的释义。
++///
++/// 触发词判定用「包含」而不是「相等」：上文可能是「三米」「十三」这种带着别的字的片段，
++/// 严格相等会漏掉绝大多数真实场景。
++pub fn pick(table: &ContextTable, word: &str, prev: &str) -> Option<String> {
++    if prev.is_empty() {
++        return None;
++    }
++    for rule in table.get(word)? {
++        if rule.triggers.iter().any(|t| !t.is_empty() && prev.contains(t)) {
++            return Some(rule.gloss.clone());
++        }
++    }
++    None
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn table() -> ContextTable {
++        let mut t = ContextTable::new();
++        t.insert(
++            "米".into(),
++            vec![
++                CtxRule { gloss: "meter".into(), triggers: vec!["三".into(), "十".into()] },
++                CtxRule { gloss: "rice".into(), triggers: vec!["吃".into()] },
++            ],
++        );
++        t
++    }
++
++    #[test]
++    fn picks_by_prev() {
++        let t = table();
++        assert_eq!(pick(&t, "米", "三"), Some("meter".into()));
++        assert_eq!(pick(&t, "米", "吃"), Some("rice".into()));
++    }
++
++    #[test]
++    fn empty_prev_never_matches() {
++        assert_eq!(pick(&table(), "米", ""), None);
++    }
++
++    #[test]
++    fn unknown_word_or_prev_falls_through() {
++        let t = table();
++        assert_eq!(pick(&t, "面", "三"), None);
++        assert_eq!(pick(&t, "米", "买了"), None);
++    }
++
++    #[test]
++    fn prev_containing_trigger_counts() {
++        // 上文是「十三」也应命中「十」
++        assert_eq!(pick(&table(), "米", "十三"), Some("meter".into()));
++    }
++}
+diff --git a/wind_input/crates/wind-coordinator/src/coordinator.rs b/wind_input/crates/wind-coordinator/src/coordinator.rs
+index 1f18c8e..33d60de 100644
+--- a/wind_input/crates/wind-coordinator/src/coordinator.rs
++++ b/wind_input/crates/wind-coordinator/src/coordinator.rs
+@@ -2094,6 +2094,12 @@ pub struct Coordinator {
+     /// （`record_commit`）、焦点变化、宿主自行出字 / 挪光标、取消、撤销上屏都清空，只有
+     /// `commit_selected` 接得上——只记真正相邻的两个词，见 [`Self::learn_next_word`]。
+     pub(crate) next_word_prev: Mutex<Option<String>>,
++    /// 词桥语境规则表：词 → 若干条「上文触发词 → 释义」规则。
++    ///
++    /// 注释词库是静态映射（「米」永远是 rice），表达不了「打完『三』该是 meter」。
++    /// 求值 `${dict}` 时先查本表、命中就用规则释义，查不到再回落词库原注释——
++    /// 所以规则可以稀疏，只写真正需要区分的词。空表 = 没放 context.json，功能自然关闭。
++    pub(crate) comment_ctx: std::sync::RwLock<crate::comment_context::ContextTable>,
+     /// 光标前的正文（末尾若干字），联想「下一词」的前文。宿主报真值
+     /// （[`Self::set_preceding_text`]），核心自己上屏 / 删字时随手跟上（[`Self::note_host_edits`]），
+     /// 两次报告之间也不脱节。桌面宿主不报，恒空。
+@@ -3214,6 +3220,7 @@ impl Coordinator {
+             self_weak: std::sync::OnceLock::new(),
+             recent_commits: Mutex::new(std::collections::VecDeque::new()),
+             next_word_prev: Mutex::new(None),
++            comment_ctx: std::sync::RwLock::new(crate::comment_context::ContextTable::new()),
+             preceding_text: Mutex::new(String::new()),
+             last_commit_len: std::sync::atomic::AtomicUsize::new(1),
+             preedit_display: Mutex::new(preedit_display_init),
+@@ -4686,6 +4693,17 @@ impl Coordinator {
+ 
+     pub(crate) fn sync_comment_dicts(&self) {
+         let data_dir = Config::data_dir();
++        // 语境规则跟着注释库一起刷新：注释库换了，规则表也该重新读一次。
++        // 放在这里而不是构造期，是因为注释库本身也是在这个函数里挂载的——
++        // 两件事的生命周期一致，分开写会出现「库换了、规则还是旧的」。
++        if let Some(dir) = data_dir.as_deref() {
++            let ctx_path = dir.join("schemas").join("comments").join("context.json");
++            let table = crate::comment_context::load(&ctx_path);
++            *self
++                .comment_ctx
++                .write()
++                .unwrap_or_else(|e| e.into_inner()) = table;
++        }
+         let auto = self.auto_comment_sources();
+         let specs = {
+             let rt = self.rt();
+diff --git a/wind_input/crates/wind-coordinator/src/lib.rs b/wind_input/crates/wind-coordinator/src/lib.rs
+index b5f05a2..5f33881 100644
+--- a/wind_input/crates/wind-coordinator/src/lib.rs
++++ b/wind_input/crates/wind-coordinator/src/lib.rs
+@@ -9,6 +9,7 @@ pub mod candidate_pull;
+ #[cfg(test)]
+ pub(crate) mod charset_test_support;
+ pub(crate) mod comment;
++pub(crate) mod comment_context;
+ #[cfg(all(unix, not(target_os = "android")))]
+ pub mod exit_signal;
+ /// 设置页预览行的模板样例求值（`comment` 本身不对外，只开放这一块）。
