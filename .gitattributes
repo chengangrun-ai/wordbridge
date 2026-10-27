@@ -1,0 +1,7 @@
+# 词库与脚本必须 LF：CRLF 会把 \r 带进 comment 末字符
+*.dict.yaml text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+LICENSE text eol=lf
+*.bat text eol=crlf
