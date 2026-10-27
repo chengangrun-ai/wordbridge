@@ -181,7 +181,7 @@ index 0000000..8928061
 +    }
 +}
 diff --git a/wind_input/crates/wind-coordinator/src/coordinator.rs b/wind_input/crates/wind-coordinator/src/coordinator.rs
-index 1f18c8e..33d60de 100644
+index 1f18c8e..7767a17 100644
 --- a/wind_input/crates/wind-coordinator/src/coordinator.rs
 +++ b/wind_input/crates/wind-coordinator/src/coordinator.rs
 @@ -2094,6 +2094,12 @@ pub struct Coordinator {
@@ -205,16 +205,21 @@ index 1f18c8e..33d60de 100644
              preceding_text: Mutex::new(String::new()),
              last_commit_len: std::sync::atomic::AtomicUsize::new(1),
              preedit_display: Mutex::new(preedit_display_init),
-@@ -4686,6 +4693,17 @@ impl Coordinator {
+@@ -4686,6 +4693,22 @@ impl Coordinator {
  
      pub(crate) fn sync_comment_dicts(&self) {
          let data_dir = Config::data_dir();
 +        // 语境规则跟着注释库一起刷新：注释库换了，规则表也该重新读一次。
-+        // 放在这里而不是构造期，是因为注释库本身也是在这个函数里挂载的——
-+        // 两件事的生命周期一致，分开写会出现「库换了、规则还是旧的」。
-+        if let Some(dir) = data_dir.as_deref() {
-+            let ctx_path = dir.join("schemas").join("comments").join("context.json");
-+            let table = crate::comment_context::load(&ctx_path);
++        //
++        // ⚠️ 路径必须走 `resolve_schema_resource`，**不能自己拼 `data_dir/schemas/...`**：
++        // `Config::data_dir()` 返回的是**安装目录下的 data**（`<程序目录>/data`），而注释库
++        // 实际在用户目录 `%APPDATA%/WindInput/schemas/comments/` 下。自己拼出来的路径不存在，
++        // 加载会静默拿到空表——功能看着「没生效」，日志里却一条错都没有。
++        // 这个函数按层解析（用户目录优先、安装目录兜底），与注释库走同一条规则。
++        if let Some(p) =
++            Config::resolve_schema_resource(data_dir.as_deref(), "comments/context.json")
++        {
++            let table = crate::comment_context::load(&p);
 +            *self
 +                .comment_ctx
 +                .write()

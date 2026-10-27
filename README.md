@@ -94,6 +94,12 @@ python tools/build_comment_dict.py [分片目录]
   <img src="assets/arch-context-light.svg" alt="跨词语境消歧的数据流：上屏的词被记住，查注释时先按上文查规则表">
 </picture>
 
+实测（先打 `san` 上屏「三」，再打 `mi`）：
+
+![跨词语境实测](assets/preview-context.png)
+
+「米」的注释是 **meter** 而不是 rice——上文决定了释义。
+
 改动只有 4 个文件、237 行（见 [`patches/`](patches/)）：
 
 | 文件 | 改了什么 |
