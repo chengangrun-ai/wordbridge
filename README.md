@@ -6,6 +6,8 @@
 
 > 打字即学英语：你打拼音出中文，候选旁边显示**结合上下文的英文释义 + 音标 + 等级标签**；上屏永远是中文。
 
+![实际效果](assets/preview.png)
+
 ```
 输入 diannao   →  电脑   computer /kəmˈpjuːtə/ 〔高考〕
 输入 xuexi     →  学习   to learn; to study /lәːn/ 〔高考〕

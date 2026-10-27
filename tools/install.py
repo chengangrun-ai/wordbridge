@@ -162,7 +162,9 @@ def main() -> int:
 
     text = set_key_in_section(text, "ui.candidate", "comment_template_vertical", f'"{TEMPLATE}"')
     text = set_key_in_section(text, "ui.candidate", "comment_template_horizontal", f'"{TEMPLATE}"')
-    print(f"注释模板 : 已设为 {TEMPLATE}")
+    # 竖排：横排下每个候选都带一长串英文，窗口会撑到超出屏幕，第一个候选的释义被裁掉
+    text = set_key_in_section(text, "ui.candidate", "layout", '"vertical"')
+    print(f"注释模板 : 已设为 {TEMPLATE}（竖排）")
 
     text = ensure_pinyin_schema(text)
     print("输入方案 : 已启用「全拼」并设为当前方案")
