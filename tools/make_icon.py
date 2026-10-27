@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 """生成「公子输入法」图标：PNG 预览 + 多尺寸 ICO。
 
-形象沿用原始手绘：圆脸 + Z 形主体 + 右上角简笔猫。
-新增一条候选条（三个小圆点），点出「输入法」这个用途。
+风格：极简线描（line art）。
+  - 单一线宽，圆头圆角，不用任何填充色块
+  - 白底纯黑线，留白充足，内容约占直径的一半
+  - 曲线用三次贝塞尔，避免折线感
 
-坐标系固定为 320×320，先按 SS 倍超采样绘制再缩到目标尺寸，
-避免小尺寸锯齿。
+形象：圆脸 + 两眉 + 两点眼 + Z 形主体。不加任何附加装饰——
+        输入法的含义靠「这是谁」而不是靠画个键盘来讲。
 """
 
 from __future__ import annotations
@@ -16,12 +18,17 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 BASE = 320          # 设计坐标系边长
-SS = 4              # 超采样倍数
+SS = 5              # 超采样倍数
 W = BASE * SS       # 实际绘制画布边长
 
-# 配色
-LIGHT = {"bg": (255, 255, 255, 255), "ink": (26, 26, 26, 255), "dot": (55, 138, 221, 255)}
-DARK = {"bg": (28, 28, 27, 255), "ink": (255, 255, 255, 255), "dot": (93, 202, 165, 255)}
+# 线宽与尺寸（设计坐标系单位）
+STROKE = 10.0
+EYE_R = 8.0
+RING_W = 2.0
+
+# 配色：白底黑线为主，深色版备用
+LIGHT = {"bg": (255, 255, 255, 255), "ink": (10, 10, 10, 255), "ring": (232, 232, 232, 255)}
+DARK = {"bg": (24, 24, 23, 255), "ink": (250, 250, 249, 255), "ring": (58, 58, 56, 255)}
 
 
 def s(v: float) -> float:
@@ -29,24 +36,25 @@ def s(v: float) -> float:
     return v * SS
 
 
-def quad(p0, p1, p2, n: int = 14):
-    """二次贝塞尔采样，用来画眉毛的弧度（Pillow 没有曲线原语）。
+def cubic(p0, p1, p2, p3, n: int = 24):
+    """三次贝塞尔采样。
 
-    采样点不能太密：`joint="curve"` 在密集点上会叠出毛刺，14 段足够平滑。
+    采样点不能太密：`joint="curve"` 在密集点上会叠出毛刺，24 段足够平滑。
     """
     pts = []
     for i in range(n + 1):
         t = i / n
         u = 1 - t
+        a, b, c, d = u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t
         pts.append((
-            u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0],
-            u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1],
+            a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0],
+            a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1],
         ))
     return pts
 
 
-def stroke(draw: ImageDraw.ImageDraw, pts, color, width: float) -> None:
-    """带圆头的折线：线体 + 两端补圆点。"""
+def stroke(draw: ImageDraw.ImageDraw, pts, color, width: float = STROKE) -> None:
+    """带圆头的折线：线体 + 两端补圆点（Pillow 的 line 没有 round cap）。"""
     w = s(width)
     scaled = [(s(x), s(y)) for x, y in pts]
     draw.line(scaled, fill=color, width=int(round(w)), joint="curve")
@@ -62,41 +70,28 @@ def dot(draw, cx, cy, r, color):
 def draw_icon(palette: dict) -> Image.Image:
     img = Image.new("RGBA", (W, W), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    ink, dotc = palette["ink"], palette["dot"]
+    ink, ring = palette["ink"], palette["ring"]
 
-    # 圆底
-    d.ellipse([s(18), s(18), s(302), s(302)], fill=palette["bg"])
+    # 圆底 + 极淡描边
+    d.ellipse([s(17), s(17), s(303), s(303)], fill=palette["bg"])
+    d.ellipse(
+        [s(17), s(17), s(303), s(303)],
+        outline=ring, width=int(round(s(RING_W))),
+    )
 
-    # 左眉
-    stroke(d, quad((100, 80), (120, 62), (142, 74)), ink, 9)
-    # 右眉（同时是 Z 的上横）
-    stroke(d, quad((146, 82), (180, 78), (200, 108)), ink, 9)
-    # Z 的斜杠
-    stroke(d, [(200, 108), (115, 180)], ink, 9)
-    # Z 的下横
-    stroke(d, [(115, 180), (196, 180)], ink, 9)
+    # 左眉：独立一段短弧，上凸
+    stroke(d, cubic((92, 122), (110, 100), (136, 99), (148, 108)), ink)
+    # 右眉：长弧，先平后缓降。末端刻意压低一点，
+    # 让「眉梢 → 斜杠」的转折接近 120°，折角才不会像箭头。
+    stroke(d, cubic((162, 111), (192, 104), (224, 124), (233, 158)), ink)
+    # Z 斜杠
+    stroke(d, [(233, 158), (108, 208)], ink)
+    # Z 底横
+    stroke(d, [(108, 208), (208, 208)], ink)
 
     # 眼睛
-    dot(d, 116, 114, 8, ink)
-    dot(d, 180, 107, 8, ink)
-
-    # 候选条：三个小点 = 候选列表，第一个高亮 = 当前选中
-    d.rounded_rectangle(
-        [s(88), s(198), s(218), s(228)],
-        radius=s(15), outline=ink, width=int(round(s(6))),
-    )
-    dot(d, 116, 213, 5, dotc)
-    dot(d, 142, 213, 5, ink)
-    dot(d, 168, 213, 5, ink)
-
-    # 猫：头 + 两只尖耳 + 眼睛 + 尾巴。整体收在圆内，避免白线落到透明区看不见。
-    # 线宽要比脸细一档（5 vs 9），否则圆头内径被线宽吃掉，看上去像实心白球。
-    d.ellipse([s(210), s(68), s(242), s(100)], outline=ink, width=int(round(s(5))))
-    stroke(d, [(214, 74), (216, 56), (228, 70)], ink, 5)
-    stroke(d, [(232, 68), (242, 54), (248, 70)], ink, 5)
-    dot(d, 220, 84, 2.8, ink)
-    dot(d, 234, 84, 2.8, ink)
-    stroke(d, quad((242, 90), (256, 90), (250, 70)), ink, 5)
+    dot(d, 126, 146, EYE_R, ink)
+    dot(d, 200, 139, EYE_R, ink)
 
     return img.resize((BASE, BASE), Image.LANCZOS)
 
@@ -107,24 +102,20 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     sizes = [16, 24, 32, 48, 64, 128, 256]
-    for name, palette in (("light", LIGHT), ("dark", DARK)):
+    # 白底版就是主图标（与手绘原作一致），深色版另存备用
+    for stem, palette in (("gongzi", LIGHT), ("icon-dark", DARK)):
         big = draw_icon(palette)
-        # 1024 预览图
-        big.resize((1024, 1024), Image.LANCZOS).save(out / f"icon-{name}.png")
-        # 多尺寸 ico
+        big.resize((1024, 1024), Image.LANCZOS).save(out / f"{stem}.png")
         frames = [big.resize((n, n), Image.LANCZOS) for n in sizes]
         frames[-1].save(
-            out / f"icon-{name}.ico",
+            out / f"{stem}.ico",
             format="ICO",
             sizes=[(n, n) for n in sizes],
             append_images=frames[:-1],
         )
-        print(f"已生成 icon-{name}.png / icon-{name}.ico")
+        print(f"已生成 {stem}.png / {stem}.ico")
 
-    # 语言栏用的主图标：深色版在小尺寸下对比度更好
-    (out / "icon-dark.ico").replace(out / "gongzi.ico")
-    (out / "icon-dark.png").replace(out / "gongzi.png")
-    print("主图标：assets/gongzi.ico + assets/gongzi.png")
+    print("主图标：assets/gongzi.ico + assets/gongzi.png（白底版）")
     return 0
 
 
