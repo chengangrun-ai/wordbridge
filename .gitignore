@@ -4,3 +4,5 @@ __pycache__/
 Thumbs.db
 *.bak-*
 config.toml.bak-*
+release/dist/
+release/*.zip
