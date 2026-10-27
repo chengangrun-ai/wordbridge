@@ -1,4 +1,8 @@
-# 词桥 WordBridge
+<p align="center">
+  <img src="assets/gongzi.png" width="120" alt="公子输入法">
+</p>
+
+# 公子输入法 · WordBridge
 
 > 打字即学英语：你打拼音出中文，候选旁边显示**结合上下文的英文释义 + 音标 + 等级标签**；上屏永远是中文。
 
